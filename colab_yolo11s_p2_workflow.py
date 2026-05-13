@@ -43,7 +43,7 @@ LOCAL_PROJECT_DIR = "/content/yolo11s_p2_project"
 RUN_NAME = "yolo11s_p2_run"
 EXIST_OK = True
 RESUME_IF_POSSIBLE = True
-SAVE_PERIOD = 5  # Save an extra epoch checkpoint every N epochs for safer Colab recovery.
+SAVE_PERIOD = 10  # Save one extra epoch checkpoint every N epochs for safer Colab recovery.
 
 
 # Training hyperparameters -----------------------------------------------------
@@ -377,6 +377,21 @@ def should_resume_from_last_checkpoint() -> bool:
     return RESUME_IF_POSSIBLE and LAST_CKPT.exists()
 
 
+def prune_old_periodic_checkpoints(trainer: Any) -> None:
+    weights_dir = Path(trainer.save_dir) / "weights"
+    epoch_ckpts = sorted(weights_dir.glob("epoch*.pt"), key=lambda p: p.stat().st_mtime)
+    if len(epoch_ckpts) <= 1:
+        return
+
+    for stale_ckpt in epoch_ckpts[:-1]:
+        stale_ckpt.unlink(missing_ok=True)
+        print(f"Removed old periodic checkpoint: {stale_ckpt}")
+
+
+def attach_resilience_callbacks(model: YOLO) -> None:
+    model.add_callback("on_model_save", prune_old_periodic_checkpoints)
+
+
 # ============================================================
 # 6. Safe partial weight transfer
 # ============================================================
@@ -504,6 +519,7 @@ else:
         report_path=TRANSFER_REPORT_OUT,
     )
     save_partial_checkpoint(modified_model, PARTIAL_WEIGHTS_OUT)
+    attach_resilience_callbacks(modified_model)
 
 
 # ============================================================
@@ -515,6 +531,7 @@ def start_or_resume_training(model: YOLO | None) -> Any:
     if should_resume_from_last_checkpoint():
         print(f"Resuming training from: {LAST_CKPT}")
         resumed_model = YOLO(str(LAST_CKPT))
+        attach_resilience_callbacks(resumed_model)
         return resumed_model.train(resume=True)
 
     if model is None:
