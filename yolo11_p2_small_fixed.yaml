@@ -2,10 +2,12 @@
 # Fixed small-scale custom YOLO11-P2 model
 # Detects on P2, P3, P4 only
 
-nc: 80  # change to your class count
+nc: 80
+scale: s
+scales:
+  s: [1.0, 1.0, 1024]
 
 backbone:
-  # [from, repeats, module, args]
   - [-1, 1, Conv, [32, 3, 2]]         # 0  P1/2
   - [-1, 1, Conv, [64, 3, 2]]         # 1  P2/4
   - [-1, 2, C3k2, [128, False, 0.25]] # 2  P2 features
@@ -19,30 +21,24 @@ backbone:
   - [-1, 2, C2PSA, [512]]             # 10
 
 head:
-  # P5 -> P4
   - [-1, 1, nn.Upsample, [None, 2, "nearest"]]   # 11
   - [[-1, 6], 1, Concat, [1]]                    # 12
   - [-1, 2, C3k2, [256, False]]                  # 13 P4
 
-  # P4 -> P3
   - [-1, 1, nn.Upsample, [None, 2, "nearest"]]   # 14
   - [[-1, 4], 1, Concat, [1]]                    # 15
   - [-1, 2, C3k2, [128, False]]                  # 16 P3
 
-  # P3 -> P2
   - [-1, 1, nn.Upsample, [None, 2, "nearest"]]   # 17
   - [[-1, 2], 1, Concat, [1]]                    # 18
   - [-1, 2, C3k2, [64, False]]                   # 19 P2
 
-  # P2 -> P3
   - [-1, 1, Conv, [128, 3, 2]]                   # 20
   - [[-1, 16], 1, Concat, [1]]                   # 21
   - [-1, 2, C3k2, [128, False]]                  # 22 P3
 
-  # P3 -> P4
   - [-1, 1, Conv, [256, 3, 2]]                   # 23
   - [[-1, 13], 1, Concat, [1]]                   # 24
   - [-1, 2, C3k2, [256, False]]                  # 25 P4
 
-  # Detect on P2, P3, P4
   - [[19, 22, 25], 1, Detect, [nc]]
